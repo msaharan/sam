@@ -1,0 +1,27 @@
+universe = "configs/universes/etf_core.toml"
+market = "us"
+data_source = "yfinance"
+start = "2018-01-01"
+price_output = "data/raw/etf_core.parquet"
+refresh_data = true
+
+ml_config = "configs/ml/baseline.toml"
+model_dir = "models/latest"
+model_path = "models/latest/model.pkl"
+train_if_missing = true
+retrain = false
+
+risk_symbol = "SPY"
+risk_horizon_days = 20
+risk_threshold_quantile = 0.8
+risk_threshold_end = "2019-12-31"
+
+allocation_top_k = 5
+allocation_max_weight = 0.20
+allocation_weighting = "equal"
+transaction_cost_bps = 5.0
+slippage_bps = 1.0
+turnover_limit = 2.0
+top_scores_count = 10
+
+report_root = "reports/daily"

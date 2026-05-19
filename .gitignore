@@ -36,19 +36,17 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Unit test / coverage reports
+# Coverage reports
 htmlcov/
 .tox/
 .nox/
 .coverage
 .coverage.*
 .cache
-nosetests.xml
 coverage.xml
 *.cover
 *.py.cover
 .hypothesis/
-.pytest_cache/
 cover/
 
 # Translations
@@ -216,3 +214,14 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# sam generated research artifacts
+data/*
+!data/.gitkeep
+reports/*
+!reports/.gitkeep
+models/*
+!models/.gitkeep
+artifacts/*
+!artifacts/.gitkeep
+**/.sam-api-token

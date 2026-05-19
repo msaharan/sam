@@ -1,0 +1,8 @@
+name = "baseline-walk-forward"
+model = "hist_gradient_boosting"
+task = "regression"
+horizon_days = 21
+train_window_days = 504
+test_window_days = 63
+step_days = 63
+embargo_days = 5

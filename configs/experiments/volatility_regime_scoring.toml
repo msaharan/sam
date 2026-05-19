@@ -1,0 +1,87 @@
+id = "volatility-regime-scoring"
+name = "Volatility Regime Scoring"
+hypothesis = "A supervised risk score can prioritize future high-volatility SPY regimes, but it must beat simple implied and realized volatility baselines at useful operating points."
+status = "published"
+visibility = "open_core"
+blog_post = "dsaie/blog/20260507-tabpfn-tabicl-volatility-regime-forecasting-2.md"
+notebook = "dsaie/blog/20260507-tabpfn-tabicl-volatility-regime-forecasting-2.assets/saved-versions/tabpfn-tabicl-volatility-forecasting-20260507-v2.ipynb"
+tags = ["risk", "volatility", "classification", "tabular-foundation-models"]
+metrics = ["average_precision", "roc_auc", "brier_score", "log_loss", "ece", "top_decile_hit_rate", "alerts_for_recall"]
+artifacts = [
+  "precision_recall_curves_holdout.png",
+  "publication_calibration_curves_holdout.png",
+  "risk_policy_equity_curves.png",
+]
+limitations = [
+  "Public market data only; no proprietary risk or options surface data.",
+  "Future realized-volatility labels overlap across adjacent signal dates.",
+  "Risk-control policy is a diagnostic, not a trading strategy.",
+]
+sam_takeaway = "Promote volatility-regime scoring into a reusable risk-dashboard experiment with alert-queue and calibration diagnostics."
+
+[data]
+source = "yfinance public OHLCV and VIX proxy data"
+universe = "SPY volatility risk research universe"
+symbols = ["SPY", "^VIX"]
+fields = ["open", "high", "low", "close", "adj_close", "volume"]
+adjusted_policy = "use adjusted SPY prices for close-to-close returns; use OHLC fields for range volatility estimators"
+timestamp_convention = "features are available at the close of signal date t"
+missing_data_policy = "align SPY and volatility proxy dates before feature construction"
+start = "2006-01-01"
+end = "2026-04-02"
+
+[features]
+families = ["realized_volatility", "range_volatility", "implied_volatility", "trend", "drawdown", "calendar"]
+lookback_windows_days = [5, 10, 20, 63, 126, 252]
+leakage_policy = "all rolling features end at or before the signal close"
+static_identity_policy = "exclude"
+
+[target]
+name = "future_20d_high_realized_volatility"
+task = "risk_scoring"
+horizon_days = 20
+label_definition = "1 when future 20-trading-day annualized SPY realized volatility exceeds the train-estimated 80th percentile threshold"
+execution_convention = "score formed after signal close; future volatility measured over subsequent trading days"
+target_timestamp = "end of future 20-trading-day realization window"
+allow_overlapping_labels = true
+
+[validation]
+split_policy = "fixed_chronological"
+embargo_days = 0
+overlap_policy = "overlapping labels are allowed but documented; no random splits"
+
+[[validation.windows]]
+name = "early_context"
+start = "2006-01-03"
+end = "2009-12-31"
+purpose = "retained for chronological context"
+
+[[validation.windows]]
+name = "post_context_tuning"
+start = "2010-01-04"
+end = "2017-12-29"
+purpose = "optional benchmark and operating-point selection"
+
+[[validation.windows]]
+name = "calibration"
+start = "2018-01-02"
+end = "2019-12-31"
+purpose = "probability and threshold diagnostics"
+
+[[validation.windows]]
+name = "holdout"
+start = "2020-01-02"
+end = "2026-04-02"
+purpose = "final future-facing evaluation"
+
+[decision]
+workflow = "alert_queue"
+alert_threshold_policy = "select thresholds on calibration data for fixed recall or action-rate diagnostics"
+cost_model_bps = 1.0
+slippage_bps = 0.0
+risk_controls = ["alert queue sizing", "threshold sensitivity", "regime-level monitoring", "optional exposure-reduction diagnostic"]
+
+[models]
+baselines = ["VIX close", "VIX z-score 252d", "SPY realized volatility", "Parkinson volatility", "Garman-Klass volatility"]
+candidates = ["TabPFN direct", "TabICL direct", "XGBoost all-history"]
+selection_policy = "learned models must improve alert efficiency, calibration, complementarity, or downstream risk diagnostics over simple volatility rules"

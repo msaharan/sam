@@ -1,0 +1,91 @@
+id = "tactical-etf-allocation"
+name = "Tactical ETF Allocation"
+hypothesis = "A supervised cross-sectional scorer can improve monthly ETF allocation diagnostics only if ranking quality survives identity ablation, transaction costs, turnover, and benchmark-relative checks."
+status = "published"
+visibility = "open_core"
+blog_post = "dsaie/blog/20260511-tabpfn-tabicl-tactical-asset-allocation-2.md"
+notebook = "dsaie/blog/20260511-tabpfn-tabicl-tactical-asset-allocation-2.assets/saved-versions/tabpfn-tabicl-tactical-asset-allocation-20260511-v3.ipynb"
+tags = ["allocation", "etf", "ranking", "portfolio", "tabular-foundation-models"]
+metrics = ["average_precision", "roc_auc", "brier_score", "monthly_rank_ic", "cagr", "sharpe", "max_drawdown", "turnover", "cost_adjusted_return"]
+artifacts = [
+  "portfolio_equity_curves.png",
+  "publication_calibration_curves_holdout.png",
+  "portfolio_transaction_cost_sensitivity.csv",
+]
+limitations = [
+  "ETF universe is broader than the first version but still not institutional scale.",
+  "Public ETF history does not solve survivorship or data-release timing issues.",
+  "Next-open convention is more realistic than close-to-close but still not a full execution model.",
+  "TabICL comparison was limited by Kaggle memory constraints in the referenced run.",
+]
+sam_takeaway = "Promote ETF allocation into a reusable monthly ranking and portfolio-translation experiment."
+
+[data]
+source = "yfinance public ETF OHLCV"
+universe = "25 ETF cross-asset allocation universe"
+symbols = ["SPY", "QQQ", "DIA", "IWM", "EFA", "EEM", "TLT", "IEF", "SHY", "LQD", "HYG", "GLD", "SLV", "DBC", "VNQ", "IYR", "XLB", "XLE", "XLF", "XLI", "XLK", "XLP", "XLU", "XLV", "XLY"]
+fields = ["open", "high", "low", "close", "adj_close", "volume"]
+adjusted_policy = "use adjusted prices for monthly returns and portfolio diagnostics"
+timestamp_convention = "features are computed at month-end signal dates"
+missing_data_policy = "require assets to have usable monthly history before entering the cross-section"
+start = "2006-01-01"
+end = "2026-03-31"
+
+[features]
+families = ["momentum", "reversal", "volatility", "drawdown", "moving_average_distance", "liquidity", "cross_sectional_ranks", "missingness_indicators"]
+lookback_windows_days = [21, 63, 126, 252]
+leakage_policy = "monthly features must use data no later than the signal month end"
+static_identity_policy = "diagnostic_only"
+feature_count = 956
+
+[target]
+name = "next_month_top_5_of_25"
+task = "ranking"
+horizon_days = 21
+label_definition = "1 when the asset is in the top five next-month ETF returns within the monthly cross-section"
+execution_convention = "next-open-to-next-open return after month-end signal formation"
+target_timestamp = "first tradable open after the following month"
+allow_overlapping_labels = false
+
+[validation]
+split_policy = "fixed_chronological"
+embargo_days = 0
+overlap_policy = "monthly non-overlapping targets; no random splits"
+
+[[validation.windows]]
+name = "context"
+start = "2006-01-31"
+end = "2011-12-31"
+purpose = "early labelled context"
+
+[[validation.windows]]
+name = "model_selection"
+start = "2012-01-31"
+end = "2017-12-31"
+purpose = "model and feature policy selection"
+
+[[validation.windows]]
+name = "calibration"
+start = "2018-01-31"
+end = "2019-12-31"
+purpose = "probability and allocation-threshold diagnostics"
+
+[[validation.windows]]
+name = "holdout"
+start = "2020-01-31"
+end = "2026-03-31"
+purpose = "final future-facing evaluation"
+
+[decision]
+workflow = "allocation"
+allocation_rule = "rank assets each month by score and allocate to top five with constrained long-only weights"
+alert_threshold_policy = "not applicable"
+cost_model_bps = 5.0
+slippage_bps = 0.0
+turnover_limit = 2.0
+risk_controls = ["weight caps", "turnover diagnostics", "transaction-cost sensitivity", "benchmark-relative checks"]
+
+[models]
+baselines = ["equal weight", "12M momentum", "6M momentum", "risk-adjusted momentum", "low volatility", "dummy prior"]
+candidates = ["TabPFN direct", "XGBoost", "Logistic Regression feature sensitivity", "TabICL when memory allows"]
+selection_policy = "promote a scorer only when row-level ranking, monthly ranking, and portfolio translation all remain credible"
