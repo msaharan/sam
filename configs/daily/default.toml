@@ -14,7 +14,7 @@ retrain = false
 risk_symbol = "SPY"
 risk_horizon_days = 20
 risk_threshold_quantile = 0.8
-risk_threshold_end = "2019-12-31"
+risk_threshold_end = "2017-12-29"
 
 allocation_top_k = 5
 allocation_max_weight = 0.20

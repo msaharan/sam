@@ -1,0 +1,13 @@
+name = "volatility-regime"
+market = "us"
+symbols = [
+  "SPY",
+  "QQQ",
+  "IWM",
+  "TLT",
+  "IEF",
+  "GLD",
+  "HYG",
+  "EEM",
+  "VNQ",
+]

@@ -91,6 +91,27 @@ def test_experiment_bundle_writes_standard_files(tmp_path: Path) -> None:
     assert summary["split_summary"]
 
 
+def test_volatility_experiment_bundle_includes_observed_results(tmp_path: Path) -> None:
+    from sam.volatility_experiment import run_volatility_regime_experiment
+
+    run_dir = tmp_path / "run"
+    result = run_volatility_regime_experiment(
+        out_dir=run_dir,
+        use_synthetic_data=True,
+        skip_tfm=True,
+        skip_xgboost=True,
+        fast_mode=True,
+        write_bundle=True,
+        write_figures=False,
+        show_progress=False,
+    )
+    assert result.bundle_dir is not None
+    leaderboard = pd.read_csv(result.bundle_dir / "model_leaderboard.csv")
+    observed = leaderboard[leaderboard["status"] == "observed_results"]
+    assert not observed.empty
+    assert observed["average_precision"].notna().any()
+
+
 def test_experiment_bundle_artifact_manifest_is_reproducible(tmp_path: Path) -> None:
     spec = ExperimentRegistry("configs/experiments").get("volatility-regime-scoring")
     first = write_experiment_bundle(spec, tmp_path / "first")

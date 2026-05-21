@@ -81,7 +81,7 @@ def build_volatility_regime_frame(
         raise ValueError("cannot estimate volatility threshold from the selected data")
     target = pd.Series(pd.NA, index=frame.index, dtype="Int64")
     valid_target = frame[target_col].notna()
-    target.loc[valid_target] = (frame.loc[valid_target, target_col] > threshold).astype("Int64")
+    target.loc[valid_target] = (frame.loc[valid_target, target_col] >= threshold).astype("Int64")
     frame["target_high_vol"] = target
     frame["target_threshold"] = threshold
     frame["feature_available_date"] = pd.to_datetime(frame["date"])

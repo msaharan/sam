@@ -41,7 +41,7 @@ class DailyBriefConfig(BaseModel):
     risk_symbol: str = "SPY"
     risk_horizon_days: int = Field(default=20, ge=2)
     risk_threshold_quantile: float = Field(default=0.8, gt=0, lt=1)
-    risk_threshold_end: str | None = "2019-12-31"
+    risk_threshold_end: str | None = "2017-12-29"
 
     allocation_top_k: int = Field(default=5, ge=1)
     allocation_max_weight: float = Field(default=0.20, gt=0, le=1)
@@ -301,6 +301,9 @@ def _risk_snapshot(prices: pd.DataFrame, config: DailyBriefConfig) -> pd.DataFra
     ratio = current_vol / threshold if threshold > 0 else float("nan")
     latest["risk_score_to_threshold"] = ratio
     latest["risk_level"] = _risk_level(ratio)
+    vix_metrics = _vix_snapshot_metrics(prices)
+    for column, value in vix_metrics.items():
+        latest[column] = value
     columns = [
         "date",
         "symbol",
@@ -308,6 +311,8 @@ def _risk_snapshot(prices: pd.DataFrame, config: DailyBriefConfig) -> pd.DataFra
         vol_column,
         "target_threshold",
         "risk_score_to_threshold",
+        "vix_close",
+        "vix_zscore_252d",
         "drawdown_20d",
         "drawdown_63d",
         "ma_distance_20d",
@@ -321,6 +326,28 @@ def _risk_snapshot(prices: pd.DataFrame, config: DailyBriefConfig) -> pd.DataFra
         if column not in latest.columns:
             latest[column] = pd.NA
     return latest[columns].reset_index(drop=True)
+
+
+def _vix_snapshot_metrics(prices: pd.DataFrame) -> dict[str, float]:
+    """Attach simple VIX rule inputs when a VIX proxy exists in the price table."""
+
+    if "symbol" not in prices.columns:
+        return {}
+    vix_symbol = next(
+        (item for item in prices["symbol"].unique() if str(item).upper() in {"^VIX", "VIX"}),
+        None,
+    )
+    if vix_symbol is None:
+        return {}
+    frame = prices[prices["symbol"] == vix_symbol].sort_values("date")
+    if frame.empty:
+        return {}
+    close = frame["adj_close"].astype(float)
+    latest_close = float(close.iloc[-1])
+    mean = float(close.rolling(252, min_periods=60).mean().iloc[-1])
+    std = float(close.rolling(252, min_periods=60).std(ddof=1).iloc[-1])
+    zscore = (latest_close - mean) / std if std > 0 else float("nan")
+    return {"vix_close": latest_close, "vix_zscore_252d": zscore}
 
 
 def _risk_level(ratio: float) -> str:

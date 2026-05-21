@@ -1,8 +1,18 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
+
+SAM_ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(autouse=True)
+def _sam_repo_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests assume paths relative to the SAM repository root."""
+    monkeypatch.chdir(SAM_ROOT)
 
 
 @pytest.fixture

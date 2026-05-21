@@ -1,5 +1,7 @@
 """SAM quantitative research platform."""
 
+__version__ = "0.2.0"
+
 from sam.allocation import build_score_allocation, scores_to_weights
 from sam.backtest import run_backtest
 from sam.daily import DailyBriefConfig, DailyBriefResult, run_daily_brief
@@ -12,6 +14,7 @@ from sam.risk import build_volatility_regime_frame
 from sam.stress import run_stress_tests
 
 __all__ = [
+    "__version__",
     "ExperimentRegistry",
     "ExperimentSpec",
     "DailyBriefConfig",

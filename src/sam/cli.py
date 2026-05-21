@@ -37,8 +37,22 @@ from sam.research import ExperimentRegistry, load_experiment, write_experiment_b
 from sam.risk import alert_operating_points, build_volatility_regime_frame
 from sam.stress import run_stress_tests
 
+_SAM_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_project_dotenv() -> None:
+    """Load sam/.env when present; existing shell exports take precedence."""
+
+    from dotenv import load_dotenv
+
+    for root in (Path.cwd(), _SAM_PROJECT_ROOT):
+        env_file = root / ".env"
+        if env_file.is_file():
+            load_dotenv(env_file, override=False)
+
 
 def main(argv: list[str] | None = None) -> int:
+    _load_project_dotenv()
     parser = build_parser()
     args = parser.parse_args(argv)
     return args.func(args)
@@ -130,6 +144,18 @@ def build_parser() -> argparse.ArgumentParser:
     alerts.add_argument("--recalls", nargs="+", type=float, default=[0.5, 0.8, 0.9])
     alerts.add_argument("--out", default="reports/risk/alert_operating_points.csv")
     alerts.set_defaults(func=cmd_risk_alerts)
+    snapshot = risk_sub.add_parser(
+        "snapshot",
+        help="Today's SPY/VIX volatility snapshot for daily monitoring",
+    )
+    snapshot.add_argument("--cache-dir", default="data/research/volatility_regime")
+    snapshot.add_argument("--config", default="configs/risk/volatility_regime_run.toml")
+    snapshot.add_argument("--symbol", default="SPY")
+    snapshot.add_argument(
+        "--out",
+        default="reports/experiments/volatility-regime-scoring/snapshot.json",
+    )
+    snapshot.set_defaults(func=cmd_risk_snapshot)
 
     allocation = subparsers.add_parser("allocation", help="Score-driven allocation utilities")
     allocation_sub = allocation.add_subparsers(required=True)
@@ -175,6 +201,67 @@ def build_parser() -> argparse.ArgumentParser:
     bundle_cmd.add_argument("--artifact", action="append", default=[])
     bundle_cmd.add_argument("--out", default="reports/experiments/latest")
     bundle_cmd.set_defaults(func=cmd_experiment_bundle)
+    run_cmd = experiment_sub.add_parser(
+        "run",
+        help="Execute a registered experiment workflow",
+    )
+    run_cmd.add_argument(
+        "experiment",
+        nargs="?",
+        metavar="EXPERIMENT",
+        help="Registered experiment id (e.g. volatility-regime-scoring)",
+    )
+    run_cmd.add_argument(
+        "--experiment",
+        dest="experiment_flag",
+        metavar="EXPERIMENT",
+        help="Same as positional EXPERIMENT (for scripts that prefer flags)",
+    )
+    run_cmd.add_argument("--config", default="configs/risk/volatility_regime_run.toml")
+    run_cmd.add_argument("--universe", default="configs/universes/volatility_regime.toml")
+    run_cmd.add_argument("--registry", default="configs/experiments")
+    run_cmd.add_argument("--out", default="reports/experiments/volatility-regime-scoring/run")
+    run_cmd.add_argument("--cache-dir", default="data/research/volatility_regime")
+    run_cmd.add_argument("--vix-csv")
+    run_cmd.add_argument("--fred-csv")
+    run_cmd.add_argument("--synthetic", action="store_true")
+    run_cmd.add_argument("--refresh-data", action="store_true")
+    run_cmd.add_argument("--skip-tfm", action="store_true")
+    run_cmd.add_argument("--skip-xgboost", action="store_true")
+    run_cmd.add_argument(
+        "--fast",
+        action="store_true",
+        help="Reduced bootstrap/tuning iterations for offline smoke runs",
+    )
+    run_cmd.add_argument("--no-figures", action="store_true")
+    run_cmd.add_argument(
+        "--no-progress",
+        action="store_true",
+        help="Disable tqdm progress bars",
+    )
+    run_cmd.add_argument(
+        "--no-report",
+        action="store_true",
+        help="Skip consolidated report.md / report.html",
+    )
+    run_cmd.set_defaults(func=cmd_experiment_run)
+    report_cmd = experiment_sub.add_parser(
+        "report",
+        help="Build consolidated HTML/Markdown report from a prior run",
+    )
+    report_cmd.add_argument(
+        "experiment",
+        nargs="?",
+        metavar="EXPERIMENT",
+        help="Experiment id (volatility-regime-scoring)",
+    )
+    report_cmd.add_argument(
+        "--run-dir",
+        default="reports/experiments/volatility-regime-scoring/run",
+    )
+    report_cmd.add_argument("--bundle-dir", default="reports/experiments/volatility-regime-scoring")
+    report_cmd.add_argument("--cache-dir", default="data/research/volatility_regime")
+    report_cmd.set_defaults(func=cmd_experiment_report)
 
     daily = subparsers.add_parser("daily", help="Daily research brief workflows")
     daily_sub = daily.add_subparsers(required=True)
@@ -410,6 +497,90 @@ def cmd_experiment_validate(args: argparse.Namespace) -> int:
         print(issues.to_string(index=False))
         return 1
     print(f"Validated {len(specs)} experiment contracts")
+    return 0
+
+
+def cmd_experiment_run(args: argparse.Namespace) -> int:
+    from sam.volatility_experiment import run_volatility_regime_experiment
+
+    experiment_id = args.experiment_flag or args.experiment
+    if not experiment_id:
+        print(
+            "Experiment id required. Example:\n"
+            "  sam experiment run volatility-regime-scoring --synthetic --fast\n"
+            "  sam experiment run --experiment volatility-regime-scoring --synthetic --fast"
+        )
+        return 2
+    if experiment_id != "volatility-regime-scoring":
+        print(f"Unsupported experiment run id: {experiment_id}")
+        print("Supported ids: volatility-regime-scoring")
+        return 1
+    result = run_volatility_regime_experiment(
+        experiment_id=experiment_id,
+        run_config_path=args.config,
+        universe_path=args.universe,
+        out_dir=args.out,
+        cache_dir=args.cache_dir,
+        registry_path=args.registry,
+        use_synthetic_data=args.synthetic,
+        vix_csv=args.vix_csv,
+        fred_csv=args.fred_csv,
+        skip_tfm=args.skip_tfm,
+        skip_xgboost=args.skip_xgboost,
+        fast_mode=args.fast,
+        refresh_data=args.refresh_data,
+        write_figures=not args.no_figures,
+        show_progress=not args.no_progress,
+        write_report=not args.no_report,
+    )
+    print(f"Wrote volatility-regime run artifacts to {result.out_dir}")
+    if not args.no_report:
+        report_html = Path(result.out_dir) / "report.html"
+        if report_html.is_file():
+            print(f"Open consolidated report: {report_html.resolve()}")
+    if result.bundle_dir is not None:
+        print(f"Updated experiment bundle at {result.bundle_dir}")
+    return 0
+
+
+def cmd_risk_snapshot(args: argparse.Namespace) -> int:
+    from sam.volatility_report import build_volatility_market_snapshot
+
+    snapshot = build_volatility_market_snapshot(
+        cache_dir=args.cache_dir,
+        run_config_path=args.config,
+        symbol=args.symbol,
+    )
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(snapshot, indent=2, sort_keys=True), encoding="utf-8")
+    print(f"Risk level: {snapshot['risk_level']} (as of {snapshot['as_of']})")
+    print(snapshot["interpretation"])
+    print(f"Wrote snapshot to {out}")
+    return 0
+
+
+def cmd_experiment_report(args: argparse.Namespace) -> int:
+    from sam.volatility_report import (
+        build_volatility_market_snapshot,
+        write_volatility_regime_report,
+    )
+
+    experiment_id = args.experiment or "volatility-regime-scoring"
+    if experiment_id != "volatility-regime-scoring":
+        print(f"Report generation not implemented for: {experiment_id}")
+        return 1
+    snapshot = {}
+    try:
+        snapshot = build_volatility_market_snapshot(cache_dir=args.cache_dir)
+    except (ValueError, OSError) as exc:
+        print(f"Market snapshot skipped: {exc}")
+    result = write_volatility_regime_report(
+        args.run_dir,
+        bundle_dir=args.bundle_dir,
+        snapshot=snapshot,
+    )
+    print(f"Wrote report to {result.html_path}")
     return 0
 
 
