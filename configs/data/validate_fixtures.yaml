@@ -1,0 +1,16 @@
+data_dir: tests/fixtures
+provider: fixture
+quality_gates:
+  min_completeness: 0.90
+  max_errors: 10
+  max_critical_anomalies: 1
+  max_staleness_minutes: 525600
+  enforce: false
+feed_spec:
+  timestamp_col: date
+  entity_col: symbol
+  close_col: close
+  price_col: close
+  calendar: NYSE
+  timezone: America/New_York
+  data_frequency: daily

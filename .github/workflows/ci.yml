@@ -1,18 +1,42 @@
-name: CI
+name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
-  test:
+  test-default:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
-      - run: python -m pip install -U pip
-      - run: python -m pip install -e ".[dev]"
-      - run: python -m ruff check .
-      - run: python -m pytest
+          python-version: "3.12"
+      - name: Install cmake for ml4t-diagnostic
+        run: sudo apt-get update && sudo apt-get install -y cmake
+      - name: Install and test
+        run: |
+          uv sync --extra backtest --extra live --extra data --group dev
+          uv run ruff check .
+          uv run python scripts/generate_fixtures.py
+          uv run pytest -q
+          uv run pytest -q -m "integration or not integration"
+          uv run pytest -q tests/integration/test_backtest_ma.py
+          uv run pytest -q tests/integration/test_live_shadow.py
+          uv run pytest -q tests/integration/test_signal_rank_backtest.py
+
+  test-research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install cmake for llvmlite
+        run: sudo apt-get update && sudo apt-get install -y cmake
+      - name: Install research extras and test
+        run: |
+          uv sync --extra all --group dev
+          uv run python scripts/generate_fixtures.py
+          uv run pytest -q -m "integration or not integration"

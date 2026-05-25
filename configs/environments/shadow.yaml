@@ -1,0 +1,13 @@
+environment: shadow
+duration_seconds: 65
+risk:
+  shadow_mode: true
+  max_position_value: 5000
+  max_order_value: 2000
+  max_positions: 1
+  max_total_exposure: 5000
+  max_orders_per_minute: 5
+  max_daily_loss: 500
+  max_drawdown_pct: 0.03
+  max_data_staleness_seconds: 120
+  kill_switch_enabled: true

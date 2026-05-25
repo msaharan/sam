@@ -1,0 +1,9 @@
+prices_path: tests/fixtures/ohlcv_ma_baseline.parquet
+output_dir: artifacts/research/default/signals
+strategy_id: signal_rank
+model:
+  model_type: linear_feature_portfolio
+  train_fraction: 0.7
+  ridge_alpha: 0.0001
+  fit_intercept: true
+  gross_exposure: 1.0

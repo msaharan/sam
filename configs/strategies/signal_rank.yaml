@@ -1,0 +1,8 @@
+strategy: signal_rank
+symbols: []
+universe_file: configs/universes/etf_core.txt
+signal_column: score
+buy_threshold: 0.55
+sell_threshold: 0.45
+top_k: 3
+order_quantity: 5

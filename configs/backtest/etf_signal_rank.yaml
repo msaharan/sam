@@ -1,0 +1,17 @@
+strategy_config: configs/strategies/signal_rank.yaml
+prices_path: tests/fixtures/ohlcv_ma_baseline.parquet
+signals_path: tests/fixtures/signals_etf_rank.parquet
+preset: realistic
+initial_cash: 100000
+output_dir: artifacts/backtest/etf_signal_rank
+calendar: NYSE
+timezone: America/New_York
+data_frequency: daily
+commission_rate: 0.002
+slippage_rate: 0.002
+corporate_actions: provider_adjusted
+signal_lag_bars: 1
+min_trades: 0
+max_drawdown: 0.25
+min_total_return: -0.25
+enforce_promotion_gates: true

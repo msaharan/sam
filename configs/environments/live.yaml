@@ -1,0 +1,14 @@
+environment: live
+duration_seconds: null
+risk:
+  shadow_mode: false
+  max_position_value: 25000
+  max_order_value: 5000
+  max_positions: 10
+  max_total_exposure: 50000
+  max_orders_per_minute: 5
+  max_daily_loss: 1000
+  max_drawdown_pct: 0.03
+  max_data_staleness_seconds: 60
+  kill_switch_enabled: true
+  fail_on_reconciliation_mismatch: true

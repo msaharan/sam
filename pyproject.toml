@@ -3,71 +3,66 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "SAM"
-version = "0.2.0"
-description = "Quantitative research and engineering platform."
+name = "sam"
+version = "0.1.0"
+description = "Production trading orchestration on ML4T libraries."
 readme = "README.md"
 license = { file = "LICENSE" }
+requires-python = ">=3.12"
 authors = [{ name = "Mohit Saharan" }]
-requires-python = ">=3.11"
-
-[project.urls]
-Homepage = "https://github.com/msaharan/sam"
-Repository = "https://github.com/msaharan/sam"
-Issues = "https://github.com/msaharan/sam/issues"
+keywords = ["trading", "backtest", "ml4t", "orchestration"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
 dependencies = [
-    "duckdb>=1.0",
-    "numpy>=1.26",
-    "pandas>=2.2",
     "pydantic>=2.6",
-    "pyarrow>=15.0",
-    "scikit-learn>=1.4",
-    "scipy>=1.11",
+    "pydantic-settings>=2.2",
+    "pyyaml>=6.0",
     "python-dotenv>=1.0",
-    "tqdm>=4.66",
-    "xgboost>=2.0",
-    "yfinance>=0.2.54",
+    "polars>=1.0",
+    "structlog>=24.0",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=8.0",
-    "ruff>=0.8",
+data = ["ml4t-data", "ml4t-diagnostic"]
+backtest = ["ml4t-backtest"]
+live = ["ml4t-live"]
+research = ["ml4t-engineer", "ml4t-diagnostic", "ml4t-models"]
+all = [
+    "ml4t-data",
+    "ml4t-engineer",
+    "ml4t-diagnostic",
+    "ml4t-models",
+    "ml4t-backtest",
+    "ml4t-live",
 ]
-notebooks = [
-    "ipykernel>=6.0",
-    "matplotlib>=3.8",
-]
-volatility = [
-    "matplotlib>=3.8",
-]
-tfm = [
-    "tabpfn",
-    "tabicl",
-    "torch",
-]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.8"]
 
 [project.scripts]
-sam = "sam.cli:main"
+sam = "sam.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[dependency-groups]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.8"]
+
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
-
-[tool.ruff.lint.per-file-ignores]
-"src/sam/volatility_report.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-m 'not integration'"
 markers = [
-    "integration: tests that require network access or optional heavy dependencies",
-    "volatility: tests that require matplotlib figures or optional TFM dependencies",
+    "integration: requires network or broker credentials",
 ]

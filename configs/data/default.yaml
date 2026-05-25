@@ -1,0 +1,21 @@
+provider: yahoo
+start_date: "2020-01-01"
+end_date: null
+universe_file: configs/universes/ma_baseline.txt
+output_subdir: raw/ma_baseline
+storage_mode: flat
+incremental: false
+quality_gates:
+  min_completeness: 0.95
+  max_errors: 5
+  max_critical_anomalies: 0
+  max_staleness_minutes: 1440
+  enforce: true
+feed_spec:
+  timestamp_col: date
+  entity_col: symbol
+  close_col: close
+  price_col: close
+  calendar: NYSE
+  timezone: America/New_York
+  data_frequency: daily

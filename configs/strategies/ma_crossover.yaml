@@ -1,0 +1,7 @@
+strategy: ma_crossover
+symbols:
+  - SPY
+  - QQQ
+  - IWM
+ma_period: 10
+order_quantity: 10

@@ -1,0 +1,7 @@
+strategy: signal_rank
+universe_file: configs/universes/equity_sample.txt
+signal_column: score
+buy_threshold: 0.55
+sell_threshold: 0.45
+top_k: 2
+order_quantity: 3

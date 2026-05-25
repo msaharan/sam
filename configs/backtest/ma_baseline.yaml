@@ -1,0 +1,16 @@
+strategy_config: configs/strategies/ma_crossover.yaml
+prices_path: tests/fixtures/ohlcv_ma_baseline.parquet
+preset: realistic
+initial_cash: 100000
+output_dir: artifacts/backtest/ma_baseline
+calendar: NYSE
+timezone: America/New_York
+data_frequency: daily
+commission_rate: 0.002
+slippage_rate: 0.002
+corporate_actions: provider_adjusted
+signal_lag_bars: 0
+min_trades: 0
+max_drawdown: 0.2
+min_total_return: -0.2
+enforce_promotion_gates: true

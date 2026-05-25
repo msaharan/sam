@@ -1,0 +1,18 @@
+strategy_config: configs/strategies/ma_crossover.yaml
+environment: paper
+risk:
+  shadow_mode: false
+  max_position_value: 5000
+  max_order_value: 1000
+  max_positions: 3
+  max_total_exposure: 10000
+  max_orders_per_minute: 5
+  max_daily_loss: 500
+  max_drawdown_pct: 0.03
+  max_data_staleness_seconds: 120
+  kill_switch_enabled: true
+state_file: state/ib_ma_risk.json
+ib_port: 7497
+broker: ib
+require_shadow_before_paper: true
+require_paper_before_live: true

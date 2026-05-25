@@ -1,136 +1,128 @@
 # SAM
 
-SAM is an open-core personal quant research and engineering platform and is a companion to the [DSAIEngineering Newsletter](https://newsletter.dsaiengineering.com). The workflows and primitives described in the newsletter are implemented in SAM. Currently, it focuses on production-style US-listed ETF allocation, volatility/risk scoring, and future US cross-sectional
-equity ranking workflows. More functionality will be integrated from the newsletter into SAM to make it more capable over time.
+SAM is a production trading orchestration layer on the [ML4T](https://github.com/orgs/ml4t/repositories) libraries. **SAM orchestrates; ML4T computes, validates, backtests, and executes.** SAM owns configs, CLI routing, strategy selection, manifests, and operator workflow only.
 
-SAM is research software for educational purposes. It does not place trades, connect to brokers, track tax lots, reconcile fills, or provide investment, legal, tax, or regulatory advice.
+## Documentation
+
+| Doc | Description |
+|-----|-------------|
+| [Architecture](docs/ARCHITECTURE.md) | Layers, data flow, promotion lifecycle (with diagrams) |
+| [Runbook](docs/RUNBOOK.md) | Operator promotion checklist and drills |
+| [Contributing](CONTRIBUTING.md) | Dev setup, tests, PR expectations |
+
+## Architecture (overview)
+
+```mermaid
+flowchart LR
+  subgraph inputs
+    YAML[configs/*.yaml]
+    ENV[.env]
+  end
+  subgraph sam
+    CLI[sam CLI]
+    STRAT[strategies]
+    MAN[manifests]
+  end
+  subgraph ml4t
+    DATA[ml4t-data]
+    BT[ml4t-backtest]
+    LIVE[ml4t-live]
+  end
+  YAML --> CLI
+  ENV --> CLI
+  CLI --> STRAT
+  CLI --> DATA
+  CLI --> BT
+  CLI --> LIVE
+  BT --> MAN
+  LIVE --> MAN
+```
+
+Promotion path: `research` → `backtest_passed` → `shadow` → `paper` → `live`. Details and sequence diagrams are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Prerequisites
+
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/) recommended (or pip)
 
 ## Install
 
+ML4T libraries are installed from [PyPI](https://pypi.org/search/?q=ml4t-).
+`uv.lock` pins the resolved package set for reproducible local and CI installs.
+
 ```bash
 cd sam
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -U pip
-python -m pip install -e ".[dev,notebooks]"
-
+uv sync --extra backtest --extra live --extra data --group dev
+# Full stack (research pulls numba/llvmlite; may require CMake):
+# uv sync --extra all --group dev
+# or: pip install -e ".[all]"
 cp .env.example .env
-# Edit .env and set FRED_API_KEY (required for live volatility-regime runs with macro data)
 ```
 
-## Quickstart
-
-Fetch data for the core ETF allocation universe:
+## Quick start
 
 ```bash
-sam data fetch \
-  --universe configs/universes/etf_core.toml \
-  --market us \
-  --start 2018-01-01 \
-  --out data/raw/etf_core.parquet \
-  --dataset-dir data/research
+# Generate test fixture (committed in repo; re-run to refresh)
+uv run python scripts/generate_fixtures.py
+
+# Backtest MA crossover on fixture data
+sam backtest run --config configs/backtest/ma_baseline.yaml
+
+# Offline data validation (no network)
+sam data validate --config configs/data/validate_fixtures.yaml
+
+# Shadow mode (no broker, synthetic feed)
+sam live shadow --config configs/live/ma_baseline.yaml --duration 30
+
+# Dry-run order preview (no engine or broker connection)
+sam live preview --config configs/strategies/ma_crossover.yaml --bars 20
+
+# Alpaca paper (requires keys in .env)
+sam live paper --config configs/live/ma_baseline.yaml --duration 95
+
+# Data sync (network; Yahoo by default)
+sam data sync --config configs/data/default.yaml
 ```
 
-Validate the data, build the experiment contract bundle, create volatility-risk diagnostics, train walk-forward ML baselines, and translate scores into allocation diagnostics:
+## CLI
 
-```bash
-sam data validate --prices data/raw/etf_core.parquet --out reports/data_validation.csv
-sam experiment bundle --experiment tactical-etf-allocation --out reports/experiments/tactical-etf-allocation
-sam risk volatility-frame --prices data/raw/etf_core.parquet --symbol SPY --out reports/risk/volatility.csv
-sam risk alerts --scores reports/risk/volatility.csv --score-columns realized_vol_20d --out reports/risk/alerts.csv
-sam ml train --prices data/raw/etf_core.parquet --config configs/ml/baseline.toml --out models/latest
-sam allocation weights --scores models/latest/predictions.parquet --top-k 5 --max-weight 0.2 --out reports/allocation/weights.csv
-sam allocation turnover --weights reports/allocation/weights.csv --transaction-cost-bps 5 --slippage-bps 1 --turnover-limit 2 --out reports/allocation/turnover.csv
-```
+| Command | Purpose |
+|---------|---------|
+| `sam data sync` | Fetch/update symbols via `ml4t.data.DataManager` + quality gates |
+| `sam data validate` | Offline validation of parquet data (use `validate_fixtures.yaml` for CI) |
+| `sam backtest run` | Run strategy through `ml4t.backtest.Engine` |
+| `sam live shadow` | Shadow mode with synthetic feed |
+| `sam live paper` | Alpaca paper trading |
+| `sam live live` | Alpaca live trading |
+| `sam live ib` | Interactive Brokers paper (TWS 7497) |
+| `sam live preview` | Synthetic dry-run order preview |
+| `sam research features` | Engineer features from OHLCV |
+| `sam research diagnose` | Signal diagnostics via `ml4t.diagnostic` |
+| `sam research train` | Train baseline signal model via `ml4t.models` |
+| `sam research all` | Run features → diagnose → train in one pipeline |
+| `sam report backtest` | Diagnostic tearsheet from backtest exports |
+| `sam ops preflight` | Broker preflight via `SafeBroker` |
+| `sam ops status` | Risk state, data freshness, manifests, optional broker snapshot |
+| `sam ops brief` | Operator markdown/json brief |
+| `sam ops kill-switch` | Activate or clear kill-switch via ML4T `RiskState` |
+| `sam ops promote` | Explicit promotion: research → backtest_passed → shadow → paper → live |
 
-Build the daily research brief:
+## Production-readiness defaults
 
-```bash
-sam daily brief --config configs/daily/default.toml
-open reports/daily/latest/brief.md
-```
+- Backtests record calendar, timezone, commission, slippage, signal lag, data window, dependency versions, artifact paths, and promotion checks in `run_manifest.json`.
+- Signal strategies use lagged signals by default to avoid same-bar lookahead.
+- Paper/live configs include daily loss, drawdown, staleness, exposure, order-rate, and kill-switch limits.
+- `sam live paper` requires a prior shadow manifest by default; `sam live live` requires a prior paper manifest.
+- `sam ops status --broker-snapshot` connects to Alpaca only when credentials are configured and otherwise reports an offline-safe status payload.
 
-### Volatility regime: everyday vs full research
+## CI
 
-| Cadence | Command | What you get |
-|--------|---------|----------------|
-| **Each morning** | `sam risk snapshot` | SPY 20d realized vol vs pre-2018 threshold, VIX context, `normal` / `watch` / `elevated` dial |
-| **Daily brief** | `sam daily brief` | ETF allocation + risk snapshot in one markdown brief |
-| **Weekly / after stress** | `sam experiment run volatility-regime-scoring` | Refreshed holdout metrics, leakage checks, figures, and a single HTML report |
-| **Re-report only** | `sam experiment report volatility-regime-scoring` | Rebuild `report.html` from an existing run folder without retraining |
+GitHub Actions runs `ruff`, unit tests, and selected integration tests on Ubuntu with Python 3.12 (see `.github/workflows/ci.yml`). Research extras are tested in a separate job with `--extra all`.
 
-```bash
-# Morning risk dial (uses cached prices/vix under data/research/volatility_regime)
-sam risk snapshot --cache-dir data/research/volatility_regime
+## License
 
-# Full pipeline + consolidated report (opens path at end of run)
-pip install -e ".[volatility]"   # matplotlib for publication PNGs
-sam experiment run volatility-regime-scoring \
-  --out reports/experiments/volatility-regime-scoring/run \
-  --cache-dir data/research/volatility_regime
-open reports/experiments/volatility-regime-scoring/run/report.html
-# Stable symlink copy: reports/experiments/volatility-regime-scoring/latest/report.html
-```
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-## Experiment Registry
+## Disclaimer
 
-Registered experiments live under `configs/experiments`. They define data, feature, target,
-validation, decision, model, metric, artifact, limitation, and blog-post contracts.
-Experiment bundles include data summaries, split summaries, contracts, model leaderboards,
-calibration diagnostics, operating points, decision translation, cost/turnover sensitivity,
-artifact and figure manifests, limitations, and publication checklists. When run artifacts are
-provided with `--artifact`, the bundle summarizes observed metrics, calibration, allocation, and
-turnover outputs instead of leaving those sections as templates.
-
-```bash
-sam experiment list
-sam experiment validate
-sam experiment bundle --experiment volatility-regime-scoring --out reports/experiments/volatility-regime-scoring
-```
-
-Run the P19 volatility-regime scoring workflow (domain rules + **XGBoost on CPU** included in the base install; optional `tfm` extra for TabPFN / TabICL; optional `volatility` extra for publication figures):
-
-```bash
-sam data fetch \
-  --universe configs/universes/volatility_regime.toml \
-  --start 2006-01-01 \
-  --out data/research/volatility_regime/prices.parquet
-
-# Live run also needs VIX (auto-downloaded) and FRED macro series.
-# Set FRED_API_KEY in sam/.env (loaded automatically), or use --fred-csv / cache-dir/fred.csv
-
-sam experiment run volatility-regime-scoring \
-  --config configs/risk/volatility_regime_run.toml \
-  --out reports/experiments/volatility-regime-scoring/run \
-  --cache-dir data/research/volatility_regime
-# Writes report.md + report.html (tables, executive summary, embedded figures). Use --no-report to skip.
-# Progress bars (tqdm) show data load, features, XGBoost tuning, bootstrap, etc. Use --no-progress to disable.
-
-sam experiment report volatility-regime-scoring \
-  --run-dir reports/experiments/volatility-regime-scoring/run
-
-# Optional: TabPFN / TabICL (large; GPU helps but not required)
-# pip install -e ".[tfm]"
-
-# Offline smoke test (no network, no FRED_API_KEY):
-sam experiment run volatility-regime-scoring --synthetic --fast --skip-tfm --no-figures
-```
-
-Lower-level risk utilities:
-
-```bash
-sam risk snapshot --cache-dir data/research/volatility_regime
-sam risk volatility-frame --prices data/raw/etf_core.parquet --symbol SPY --out reports/risk/volatility.csv
-sam allocation weights --scores models/latest/predictions.parquet --top-k 5 --max-weight 0.2 --out reports/allocation/weights.csv
-```
-
-## Development
-
-```bash
-python -m pip install -e ".[dev]"
-python -m ruff check .
-python -m pytest
-```
-
-Default tests do not require network access. `yfinance` behavior is covered with mocks and static
-fixtures.
+SAM is intended for research and engineering educational purposes. It does not provide investment, legal, tax, or regulatory advice. You are responsible for broker compliance and risk limits.
